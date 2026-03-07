@@ -56,18 +56,33 @@ export function draw(e) {
   const newX = (e.clientX - rect.left) * scaleX;
   const newY = (e.clientY - rect.top) * scaleY;
   
-  // Restore the canvas state to remove previous drawing
-  context.restore();
+  // Clear the entire canvas
+  context.clearRect(0, 0, canvas.width, canvas.height);
   
-  // Save the fresh state for next iteration
-  context.save();
-  
-  // Draw the current box
-  context.beginPath();
-  context.rect(startX, startY, newX - startX, newY - startY);
-  context.strokeStyle = 'red';
-  context.lineWidth = 2;
-  context.stroke();
+  // Redraw the PDF content
+  if (window.pdfDoc && window.currentPage && window.viewport) {
+    window.pdfDoc.getPage(window.currentPage).then(function(page) {
+      const renderContext = {
+        canvasContext: context,
+        viewport: window.viewport
+      };
+      page.render(renderContext).promise.then(function() {
+        // Draw the current box
+        context.beginPath();
+        context.rect(startX, startY, newX - startX, newY - startY);
+        context.strokeStyle = 'red';
+        context.lineWidth = 2;
+        context.stroke();
+      });
+    });
+  } else {
+    // Fallback: just draw the box without redrawing PDF
+    context.beginPath();
+    context.rect(startX, startY, newX - startX, newY - startY);
+    context.strokeStyle = 'red';
+    context.lineWidth = 2;
+    context.stroke();
+  }
   
   // Update current coordinates
   currentX = newX;

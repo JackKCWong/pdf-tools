@@ -18,6 +18,10 @@ export function loadPDF(pdfUrl) {
     pdfDoc = pdf;
     totalPages = pdf.numPages;
     currentPage = 1;
+    // Update window variables
+    window.pdfDoc = pdfDoc;
+    window.currentPage = currentPage;
+    window.totalPages = totalPages;
     updatePagination(currentPage, totalPages);
     renderPage(currentPage);
   }).catch(function(error) {
@@ -50,6 +54,7 @@ export function renderPage(pageNum, drawBBox = false) {
     window.canvas = canvas;
     window.context = context;
     window.viewport = viewport;
+    window.currentPage = pageNum;
     
     // Add mouse event listeners for drawing
     canvas.addEventListener('mousedown', window.startDrawing);
