@@ -1,0 +1,280 @@
+// Fetch existing files and populate dropdown
+function fetchExistingFiles() {
+  fetch('/files')
+    .then(response => response.json())
+    .then(data => {
+      const select = document.getElementById('pdf-file');
+      select.innerHTML = '<option value="">-- Select a file --</option>';
+      
+      data.files.forEach(file => {
+        const option = document.createElement('option');
+        option.value = file.url;
+        option.textContent = file.name;
+        select.appendChild(option);
+      });
+      
+      // Select the first PDF file if available
+      if (data.files.length > 0) {
+        select.value = data.files[0].url;
+        // Trigger change event to load the PDF
+        select.dispatchEvent(new Event('change'));
+      }
+    })
+    .catch(error => {
+      alert('Error fetching files');
+    });
+}
+
+// Upload file function
+function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  fetch('/upload', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('File uploaded successfully');
+      // Refresh file list
+      fetchExistingFiles();
+      // Clear file input
+      document.getElementById('file-upload').value = '';
+    } else {
+      alert('Error uploading file: ' + (data.message || 'Unknown error'));
+    }
+  })
+  .catch(error => {
+    alert('Error uploading file');
+    console.error(error);
+  });
+}
+
+// PDF rendering variables
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let bboxCoordinates = {
+  topLeft: null,
+  topRight: null,
+  bottomLeft: null,
+  bottomRight: null
+};
+
+// Fetch files on page load
+window.addEventListener('load', fetchExistingFiles);
+
+// Add event listener for upload button
+document.getElementById('upload-button').addEventListener('click', function() {
+  const fileInput = document.getElementById('file-upload');
+  const file = fileInput.files[0];
+  
+  if (file) {
+    console.log('Uploading file:', file);
+    uploadFile(file);
+  } else {
+    alert('Please select a PDF file to upload');
+  }
+});
+
+// Add event listeners for bounding box inputs
+const bboxInputs = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+bboxInputs.forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    validateBBoxInput(id, this.value);
+  });
+});
+
+// Add event listener for unified coordinates input
+document.getElementById('unified-coords').addEventListener('input', function() {
+  validateUnifiedCoordsInput(this.value);
+});
+
+// Validate bounding box input
+function validateBBoxInput(id, value) {
+  const coords = value.trim().split(',').map(Number);
+  if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1]) && coords[0] >= 0 && coords[1] >= 0) {
+    switch(id) {
+      case 'top-left':
+        bboxCoordinates.topLeft = coords;
+        break;
+      case 'top-right':
+        bboxCoordinates.topRight = coords;
+        break;
+      case 'bottom-left':
+        bboxCoordinates.bottomLeft = coords;
+        break;
+      case 'bottom-right':
+        bboxCoordinates.bottomRight = coords;
+        break;
+    }
+  } else {
+    switch(id) {
+      case 'top-left':
+        bboxCoordinates.topLeft = null;
+        break;
+      case 'top-right':
+        bboxCoordinates.topRight = null;
+        break;
+      case 'bottom-left':
+        bboxCoordinates.bottomLeft = null;
+        break;
+      case 'bottom-right':
+        bboxCoordinates.bottomRight = null;
+        break;
+    }
+  }
+  
+  // Trigger real-time drawing when all coordinates are valid
+  const allCoordsValid = Object.values(bboxCoordinates).every(coord => coord !== null);
+  if (allCoordsValid && pdfDoc) {
+    renderPage(currentPage, true);
+  }
+}
+
+// Validate unified coordinates input
+function validateUnifiedCoordsInput(value) {
+  const coords = value.trim().split(',').map(Number);
+  if (coords.length === 8 && coords.every(coord => !isNaN(coord) && coord >= 0)) {
+    // Update bboxCoordinates object
+    bboxCoordinates.topLeft = [coords[0], coords[1]];
+    bboxCoordinates.topRight = [coords[2], coords[3]];
+    bboxCoordinates.bottomLeft = [coords[4], coords[5]];
+    bboxCoordinates.bottomRight = [coords[6], coords[7]];
+    
+    // Update individual input fields
+    document.getElementById('top-left').value = `${coords[0]}, ${coords[1]}`;
+    document.getElementById('top-right').value = `${coords[2]}, ${coords[3]}`;
+    document.getElementById('bottom-left').value = `${coords[4]}, ${coords[5]}`;
+    document.getElementById('bottom-right').value = `${coords[6]}, ${coords[7]}`;
+    
+    // Trigger real-time drawing
+    if (pdfDoc) {
+      renderPage(currentPage, true);
+    }
+  } else {
+    // If unified input is invalid, don't clear individual fields
+    // Just don't update the coordinates
+  }
+}
+
+// Handle file selection
+document.getElementById('pdf-file').addEventListener('change', function() {
+  const pdfUrl = this.value;
+  if (pdfUrl) {
+    loadPDF(pdfUrl);
+  } else {
+    // Clear PDF container
+    document.getElementById('pdf-container').innerHTML = '';
+    updatePagination(0, 0);
+  }
+});
+
+// Handle page navigation
+document.getElementById('prev-page').addEventListener('click', function() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderPage(currentPage);
+  }
+});
+
+document.getElementById('next-page').addEventListener('click', function() {
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderPage(currentPage);
+  }
+});
+
+document.getElementById('page-input').addEventListener('change', function() {
+  let pageNum = parseInt(this.value) || 1;
+  if (pageNum < 1) pageNum = 1;
+  if (pageNum > totalPages) pageNum = totalPages;
+  currentPage = pageNum;
+  this.value = pageNum;
+  renderPage(pageNum);
+});
+
+function loadPDF(pdfUrl) {
+  const container = document.getElementById('pdf-container');
+  container.innerHTML = 'Loading PDF...';
+  
+  const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+  loadingTask.promise.then(function(pdf) {
+    pdfDoc = pdf;
+    totalPages = pdf.numPages;
+    currentPage = 1;
+    updatePagination(currentPage, totalPages);
+    renderPage(currentPage);
+  }).catch(function(error) {
+    container.innerHTML = 'Error loading PDF';
+    console.error(error);
+  });
+}
+
+function renderPage(pageNum, drawBBox = false) {
+  const container = document.getElementById('pdf-container');
+  container.innerHTML = '';
+  
+  pdfDoc.getPage(pageNum).then(function(page) {
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale: scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    container.appendChild(canvas);
+    
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
+    
+    const renderTask = page.render(renderContext);
+    renderTask.promise.then(function() {
+      // Draw bounding box if requested and all coordinates are valid
+      if (drawBBox) {
+        drawBoundingBox(context);
+      }
+      
+      // Update UI
+      document.getElementById('current-page').textContent = pageNum;
+      document.getElementById('page-input').value = pageNum;
+      updatePagination(pageNum, totalPages);
+    });
+  }).catch(function(error) {
+    container.innerHTML = 'Error rendering page';
+    console.error(error);
+  });
+}
+
+// Draw bounding box on canvas
+function drawBoundingBox(context) {
+  const { topLeft, topRight, bottomLeft, bottomRight } = bboxCoordinates;
+  
+  if (topLeft && topRight && bottomLeft && bottomRight) {
+    context.beginPath();
+    context.moveTo(topLeft[0], topLeft[1]);
+    context.lineTo(topRight[0], topRight[1]);
+    context.lineTo(bottomRight[0], bottomRight[1]);
+    context.lineTo(bottomLeft[0], bottomLeft[1]);
+    context.closePath();
+    context.strokeStyle = 'red';
+    context.lineWidth = 2;
+    context.stroke();
+  }
+}
+
+function updatePagination(pageNum, total) {
+  document.getElementById('current-page').textContent = pageNum;
+  document.getElementById('total-pages').textContent = total;
+  document.getElementById('page-input').value = pageNum;
+  document.getElementById('page-input').max = total;
+  
+  // Enable/disable navigation buttons
+  document.getElementById('prev-page').disabled = pageNum <= 1;
+  document.getElementById('next-page').disabled = pageNum >= total;
+}
