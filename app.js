@@ -66,26 +66,26 @@ function initApp() {
   
   // Handle page navigation
   document.getElementById('prev-page').addEventListener('click', function() {
-    if (currentPage > 1) {
-      currentPage--;
-      renderPage(currentPage);
+    if (window.currentPage > 1) {
+      window.currentPage--;
+      window.renderPage(window.currentPage);
     }
   });
   
   document.getElementById('next-page').addEventListener('click', function() {
-    if (currentPage < totalPages) {
-      currentPage++;
-      renderPage(currentPage);
+    if (window.currentPage < window.totalPages) {
+      window.currentPage++;
+      window.renderPage(window.currentPage);
     }
   });
   
   document.getElementById('page-input').addEventListener('change', function() {
     let pageNum = parseInt(this.value) || 1;
     if (pageNum < 1) pageNum = 1;
-    if (pageNum > totalPages) pageNum = totalPages;
-    currentPage = pageNum;
+    if (pageNum > window.totalPages) pageNum = window.totalPages;
+    window.currentPage = pageNum;
     this.value = pageNum;
-    renderPage(pageNum);
+    window.renderPage(pageNum);
   });
 }
 
