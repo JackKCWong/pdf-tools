@@ -100,7 +100,10 @@
           <input type="text" id="bottom-right" placeholder="e.g., 300, 400">
         </div>
       </div>
-
+      <div style="margin-top: 10px;">
+        <label for="unified-coords">Unified Coordinates [x1, y1, x2, y2, x3, y3, x4, y4]:</label>
+        <input type="text" id="unified-coords" placeholder="e.g., 100, 200, 300, 200, 100, 400, 300, 400" style="width: 100%;">
+      </div>
     </div>
     <div class="pagination">
       <button id="prev-page" disabled>Previous</button>
@@ -200,8 +203,12 @@
       });
     });
     
+    // Add event listener for unified coordinates input
+    document.getElementById('unified-coords').addEventListener('input', function() {
+      validateUnifiedCoordsInput(this.value);
+    });
 
-    
+
     // Validate bounding box input
     function validateBBoxInput(id, value) {
       const coords = value.trim().split(',').map(Number);
@@ -241,6 +248,32 @@
       const allCoordsValid = Object.values(bboxCoordinates).every(coord => coord !== null);
       if (allCoordsValid && pdfDoc) {
         renderPage(currentPage, true);
+      }
+    }
+    
+    // Validate unified coordinates input
+    function validateUnifiedCoordsInput(value) {
+      const coords = value.trim().split(',').map(Number);
+      if (coords.length === 8 && coords.every(coord => !isNaN(coord) && coord >= 0)) {
+        // Update bboxCoordinates object
+        bboxCoordinates.topLeft = [coords[0], coords[1]];
+        bboxCoordinates.topRight = [coords[2], coords[3]];
+        bboxCoordinates.bottomLeft = [coords[4], coords[5]];
+        bboxCoordinates.bottomRight = [coords[6], coords[7]];
+        
+        // Update individual input fields
+        document.getElementById('top-left').value = `${coords[0]}, ${coords[1]}`;
+        document.getElementById('top-right').value = `${coords[2]}, ${coords[3]}`;
+        document.getElementById('bottom-left').value = `${coords[4]}, ${coords[5]}`;
+        document.getElementById('bottom-right').value = `${coords[6]}, ${coords[7]}`;
+        
+        // Trigger real-time drawing
+        if (pdfDoc) {
+          renderPage(currentPage, true);
+        }
+      } else {
+        // If unified input is invalid, don't clear individual fields
+        // Just don't update the coordinates
       }
     }
     
