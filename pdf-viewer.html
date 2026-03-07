@@ -135,6 +135,13 @@
             option.textContent = file.name;
             select.appendChild(option);
           });
+          
+          // Select the first PDF file if available
+          if (data.files.length > 0) {
+            select.value = data.files[0].url;
+            // Trigger change event to load the PDF
+            select.dispatchEvent(new Event('change'));
+          }
         })
         .catch(error => {
           alert('Error fetching files');
