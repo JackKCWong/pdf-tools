@@ -316,6 +316,12 @@ function startDrawing(e) {
   startY = (e.clientY - rect.top) * scaleY;
   currentX = startX;
   currentY = startY;
+  
+  // Save the current canvas state before drawing
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.save();
+  }
 }
 
 function draw(e) {
@@ -324,29 +330,42 @@ function draw(e) {
   const canvas = window.canvas;
   if (!canvas) return;
   
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  
   const rect = canvas.getBoundingClientRect();
   // Calculate scaling factor between canvas size and displayed size
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   
   // Adjust mouse coordinates to actual canvas size
-  currentX = (e.clientX - rect.left) * scaleX;
-  currentY = (e.clientY - rect.top) * scaleY;
+  const newX = (e.clientX - rect.left) * scaleX;
+  const newY = (e.clientY - rect.top) * scaleY;
   
-  // Redraw the page to clear previous drawing
-  renderPage(currentPage, false);
+  // Clear the entire canvas and redraw the PDF content
+  const renderContext = {
+    canvasContext: context,
+    viewport: window.viewport
+  };
   
-  // Get the new context after redraw
-  const newCanvas = window.canvas;
-  const newContext = window.context;
-  if (!newCanvas || !newContext) return;
+  pdfDoc.getPage(currentPage).then(function(page) {
+    // Clear canvas
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Redraw the page
+    page.render(renderContext).promise.then(function() {
+      // Draw the current box
+      context.beginPath();
+      context.rect(startX, startY, newX - startX, newY - startY);
+      context.strokeStyle = 'red';
+      context.lineWidth = 2;
+      context.stroke();
+    });
+  });
   
-  // Draw the current box
-  newContext.beginPath();
-  newContext.rect(startX, startY, currentX - startX, currentY - startY);
-  newContext.strokeStyle = 'red';
-  newContext.lineWidth = 2;
-  newContext.stroke();
+  // Update current coordinates
+  currentX = newX;
+  currentY = newY;
 }
 
 function stopDrawing() {
