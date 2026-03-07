@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PDF Viewer with Pagination</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #pdf-container {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      text-align: center;
+      padding: 20px;
+    }
+    canvas {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .pagination {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .pagination input {
+      width: 60px;
+      text-align: center;
+      margin: 0 10px;
+    }
+    .page-info {
+      margin: 0 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF Viewer with Pagination</h1>
+    <div class="form-group">
+      <label for="pdf-file">Select PDF file:</label>
+      <select id="pdf-file" name="pdf-file">
+        <option value="">-- Select a file --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="file-upload">Upload PDF file:</label>
+      <input type="file" id="file-upload" accept=".pdf">
+      <button id="upload-button">Upload</button>
+    </div>
+    <div class="form-group">
+      <h3>Bounding Box</h3>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        <div>
+          <label for="top-left">Top-left (x, y):</label>
+          <input type="text" id="top-left" placeholder="e.g., 100, 200">
+        </div>
+        <div>
+          <label for="top-right">Top-right (x, y):</label>
+          <input type="text" id="top-right" placeholder="e.g., 300, 200">
+        </div>
+        <div>
+          <label for="bottom-left">Bottom-left (x, y):</label>
+          <input type="text" id="bottom-left" placeholder="e.g., 100, 400">
+        </div>
+        <div>
+          <label for="bottom-right">Bottom-right (x, y):</label>
+          <input type="text" id="bottom-right" placeholder="e.g., 300, 400">
+        </div>
+      </div>
+      <button id="draw-box" disabled>Draw Box</button>
+    </div>
+    <div id="pdf-container"></div>
+    <div class="pagination">
+      <button id="prev-page" disabled>Previous</button>
+      <span class="page-info">Page <span id="current-page">1</span> of <span id="total-pages">0</span></span>
+      <input type="number" id="page-input" value="1" min="1">
+      <button id="next-page" disabled>Next</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as pdfjsLib from './node_modules/pdfjs-dist/build/pdf.min.mjs';
+    window.pdfjsLib = pdfjsLib;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
+  </script>
+  
+  <script>
+    // Fetch existing files and populate dropdown
+    function fetchExistingFiles() {
+      fetch('/files')
+        .then(response => response.json())
+        .then(data => {
+          const select = document.getElementById('pdf-file');
+          select.innerHTML = '<option value="">-- Select a file --</option>';
+          
+          data.files.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file.url;
+            option.textContent = file.name;
+            select.appendChild(option);
+          });
+        })
+        .catch(error => {
+          alert('Error fetching files');
+        });
+    }
+    
+    // Upload file function
+    function uploadFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('File uploaded successfully');
+          // Refresh file list
+          fetchExistingFiles();
+          // Clear file input
+          document.getElementById('file-upload').value = '';
+        } else {
+          alert('Error uploading file: ' + (data.message || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        alert('Error uploading file');
+        console.error(error);
+      });
+    }
+    
+    // PDF rendering variables
+    let pdfDoc = null;
+    let currentPage = 1;
+    let totalPages = 0;
+    let bboxCoordinates = {
+      topLeft: null,
+      topRight: null,
+      bottomLeft: null,
+      bottomRight: null
+    };
+    
+    // Fetch files on page load
+    window.addEventListener('load', fetchExistingFiles);
+    
+    // Add event listener for upload button
+    document.getElementById('upload-button').addEventListener('click', function() {
+      const fileInput = document.getElementById('file-upload');
+      const file = fileInput.files[0];
+      
+      if (file) {
+        console.log('Uploading file:', file);
+        uploadFile(file);
+      } else {
+        alert('Please select a PDF file to upload');
+      }
+    });
+    
+    // Add event listeners for bounding box inputs
+    const bboxInputs = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    bboxInputs.forEach(id => {
+      document.getElementById(id).addEventListener('input', function() {
+        validateBBoxInput(id, this.value);
+      });
+    });
+    
+    // Add event listener for draw box button
+    document.getElementById('draw-box').addEventListener('click', function() {
+      renderPage(currentPage, true);
+    });
+    
+    // Validate bounding box input
+    function validateBBoxInput(id, value) {
+      const coords = value.trim().split(',').map(Number);
+      if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1]) && coords[0] >= 0 && coords[1] >= 0) {
+        switch(id) {
+          case 'top-left':
+            bboxCoordinates.topLeft = coords;
+            break;
+          case 'top-right':
+            bboxCoordinates.topRight = coords;
+            break;
+          case 'bottom-left':
+            bboxCoordinates.bottomLeft = coords;
+            break;
+          case 'bottom-right':
+            bboxCoordinates.bottomRight = coords;
+            break;
+        }
+      } else {
+        switch(id) {
+          case 'top-left':
+            bboxCoordinates.topLeft = null;
+            break;
+          case 'top-right':
+            bboxCoordinates.topRight = null;
+            break;
+          case 'bottom-left':
+            bboxCoordinates.bottomLeft = null;
+            break;
+          case 'bottom-right':
+            bboxCoordinates.bottomRight = null;
+            break;
+        }
+      }
+      
+      // Enable/disable draw box button
+      const allCoordsValid = Object.values(bboxCoordinates).every(coord => coord !== null);
+      document.getElementById('draw-box').disabled = !allCoordsValid;
+    }
+    
+    // Handle file selection
+    document.getElementById('pdf-file').addEventListener('change', function() {
+      const pdfUrl = this.value;
+      if (pdfUrl) {
+        loadPDF(pdfUrl);
+      } else {
+        // Clear PDF container
+        document.getElementById('pdf-container').innerHTML = '';
+        updatePagination(0, 0);
+      }
+    });
+    
+    // Handle page navigation
+    document.getElementById('prev-page').addEventListener('click', function() {
+      if (currentPage > 1) {
+        currentPage--;
+        renderPage(currentPage);
+      }
+    });
+    
+    document.getElementById('next-page').addEventListener('click', function() {
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderPage(currentPage);
+      }
+    });
+    
+    document.getElementById('page-input').addEventListener('change', function() {
+      let pageNum = parseInt(this.value) || 1;
+      if (pageNum < 1) pageNum = 1;
+      if (pageNum > totalPages) pageNum = totalPages;
+      currentPage = pageNum;
+      this.value = pageNum;
+      renderPage(pageNum);
+    });
+    
+    function loadPDF(pdfUrl) {
+      const container = document.getElementById('pdf-container');
+      container.innerHTML = 'Loading PDF...';
+      
+      const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+      loadingTask.promise.then(function(pdf) {
+        pdfDoc = pdf;
+        totalPages = pdf.numPages;
+        currentPage = 1;
+        updatePagination(currentPage, totalPages);
+        renderPage(currentPage);
+      }).catch(function(error) {
+        container.innerHTML = 'Error loading PDF';
+        console.error(error);
+      });
+    }
+    
+    function renderPage(pageNum, drawBBox = false) {
+      const container = document.getElementById('pdf-container');
+      container.innerHTML = '';
+      
+      pdfDoc.getPage(pageNum).then(function(page) {
+        const scale = 1.5;
+        const viewport = page.getViewport({ scale: scale });
+        
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        container.appendChild(canvas);
+        
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+        
+        const renderTask = page.render(renderContext);
+        renderTask.promise.then(function() {
+          // Draw bounding box if requested and all coordinates are valid
+          if (drawBBox) {
+            drawBoundingBox(context);
+          }
+          
+          // Update UI
+          document.getElementById('current-page').textContent = pageNum;
+          document.getElementById('page-input').value = pageNum;
+          updatePagination(pageNum, totalPages);
+        });
+      }).catch(function(error) {
+        container.innerHTML = 'Error rendering page';
+        console.error(error);
+      });
+    }
+    
+    // Draw bounding box on canvas
+    function drawBoundingBox(context) {
+      const { topLeft, topRight, bottomLeft, bottomRight } = bboxCoordinates;
+      
+      if (topLeft && topRight && bottomLeft && bottomRight) {
+        context.beginPath();
+        context.moveTo(topLeft[0], topLeft[1]);
+        context.lineTo(topRight[0], topRight[1]);
+        context.lineTo(bottomRight[0], bottomRight[1]);
+        context.lineTo(bottomLeft[0], bottomLeft[1]);
+        context.closePath();
+        context.strokeStyle = 'red';
+        context.lineWidth = 2;
+        context.stroke();
+      }
+    }
+    
+    function updatePagination(pageNum, total) {
+      document.getElementById('current-page').textContent = pageNum;
+      document.getElementById('total-pages').textContent = total;
+      document.getElementById('page-input').value = pageNum;
+      document.getElementById('page-input').max = total;
+      
+      // Enable/disable navigation buttons
+      document.getElementById('prev-page').disabled = pageNum <= 1;
+      document.getElementById('next-page').disabled = pageNum >= total;
+    }
+  </script>
+</body>
+</html>
