@@ -24,6 +24,9 @@ export function loadPDF(pdfUrl) {
     window.totalPages = totalPages;
     updatePagination(currentPage, totalPages);
     renderPage(currentPage);
+    
+    // Extract and display PDF metadata
+    extractMetadata(pdf);
   }).catch(function(error) {
     container.innerHTML = 'Error loading PDF';
     console.error(error);
@@ -99,4 +102,55 @@ export function updatePagination(pageNum, total) {
   // Enable/disable navigation buttons
   document.getElementById('prev-page').disabled = pageNum <= 1;
   document.getElementById('next-page').disabled = pageNum >= total;
+}
+
+/**
+ * Extract and display PDF metadata
+ * @param {Object} pdf - PDF document object
+ */
+export function extractMetadata(pdf) {
+  const metadataContent = document.getElementById('metadata-content');
+  
+  pdf.getMetadata().then(function(data) {
+    const info = data.info || {};
+    let metadataHTML = '<table style="width: 100%; border-collapse: collapse;">';
+    
+    const metadataFields = [
+      { label: 'Title', key: 'Title' },
+      { label: 'Author', key: 'Author' },
+      { label: 'Subject', key: 'Subject' },
+      { label: 'Keywords', key: 'Keywords' },
+      { label: 'Creation Date', key: 'CreationDate' },
+      { label: 'Modification Date', key: 'ModDate' },
+      { label: 'Producer', key: 'Producer' },
+      { label: 'Creator', key: 'Creator' }
+    ];
+    
+    metadataFields.forEach(field => {
+      if (info[field.key]) {
+        metadataHTML += `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${field.label}:</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${info[field.key]}</td>
+          </tr>
+        `;
+      }
+    });
+    
+    // Add page count if not already present
+    if (!info.PageCount) {
+      metadataHTML += `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Page Count:</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${pdf.numPages}</td>
+        </tr>
+      `;
+    }
+    
+    metadataHTML += '</table>';
+    metadataContent.innerHTML = metadataHTML;
+  }).catch(function(error) {
+    metadataContent.innerHTML = 'Error extracting metadata';
+    console.error(error);
+  });
 }
