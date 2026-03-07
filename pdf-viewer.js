@@ -63,6 +63,16 @@ let bboxCoordinates = {
   bottomRight: null
 };
 
+// Box drawing variables
+let isDrawing = false;
+let startX = 0;
+let startY = 0;
+let currentX = 0;
+let currentY = 0;
+let canvas = null;
+let context = null;
+let viewport = null;
+
 // Fetch files on page load
 window.addEventListener('load', fetchExistingFiles);
 
@@ -228,6 +238,17 @@ function renderPage(pageNum, drawBBox = false) {
     
     container.appendChild(canvas);
     
+    // Store references for drawing
+    window.canvas = canvas;
+    window.context = context;
+    window.viewport = viewport;
+    
+    // Add mouse event listeners for drawing
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseleave', stopDrawing);
+    
     const renderContext = {
       canvasContext: context,
       viewport: viewport
@@ -277,4 +298,83 @@ function updatePagination(pageNum, total) {
   // Enable/disable navigation buttons
   document.getElementById('prev-page').disabled = pageNum <= 1;
   document.getElementById('next-page').disabled = pageNum >= total;
+}
+
+// Mouse event handlers for drawing
+function startDrawing(e) {
+  isDrawing = true;
+  const canvas = window.canvas;
+  if (!canvas) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  // Calculate scaling factor between canvas size and displayed size
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  
+  // Adjust mouse coordinates to actual canvas size
+  startX = (e.clientX - rect.left) * scaleX;
+  startY = (e.clientY - rect.top) * scaleY;
+  currentX = startX;
+  currentY = startY;
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  
+  const canvas = window.canvas;
+  if (!canvas) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  // Calculate scaling factor between canvas size and displayed size
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  
+  // Adjust mouse coordinates to actual canvas size
+  currentX = (e.clientX - rect.left) * scaleX;
+  currentY = (e.clientY - rect.top) * scaleY;
+  
+  // Redraw the page to clear previous drawing
+  renderPage(currentPage, false);
+  
+  // Get the new context after redraw
+  const newCanvas = window.canvas;
+  const newContext = window.context;
+  if (!newCanvas || !newContext) return;
+  
+  // Draw the current box
+  newContext.beginPath();
+  newContext.rect(startX, startY, currentX - startX, currentY - startY);
+  newContext.strokeStyle = 'red';
+  newContext.lineWidth = 2;
+  newContext.stroke();
+}
+
+function stopDrawing() {
+  if (!isDrawing) return;
+  isDrawing = false;
+  
+  // Set coordinates: mouse down is top left, mouse up is bottom right
+  const x1 = startX;
+  const y1 = startY;
+  const x2 = currentX;
+  const y2 = currentY;
+  
+  // Update bounding box coordinates
+  bboxCoordinates.topLeft = [x1, y1];
+  bboxCoordinates.topRight = [x2, y1];
+  bboxCoordinates.bottomLeft = [x1, y2];
+  bboxCoordinates.bottomRight = [x2, y2];
+  
+  // Update input fields
+  document.getElementById('top-left').value = `${x1.toFixed(0)}, ${y1.toFixed(0)}`;
+  document.getElementById('top-right').value = `${x2.toFixed(0)}, ${y1.toFixed(0)}`;
+  document.getElementById('bottom-left').value = `${x1.toFixed(0)}, ${y2.toFixed(0)}`;
+  document.getElementById('bottom-right').value = `${x2.toFixed(0)}, ${y2.toFixed(0)}`;
+  
+  // Update unified coordinates
+  const unifiedCoords = `${x1.toFixed(0)}, ${y1.toFixed(0)}, ${x2.toFixed(0)}, ${y1.toFixed(0)}, ${x1.toFixed(0)}, ${y2.toFixed(0)}, ${x2.toFixed(0)}, ${y2.toFixed(0)}`;
+  document.getElementById('unified-coords').value = unifiedCoords;
+  
+  // Redraw with the final bounding box
+  renderPage(currentPage, true);
 }
