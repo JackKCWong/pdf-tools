@@ -100,7 +100,7 @@
           <input type="text" id="bottom-right" placeholder="e.g., 300, 400">
         </div>
       </div>
-      <button id="draw-box" disabled>Draw Box</button>
+
     </div>
     <div class="pagination">
       <button id="prev-page" disabled>Previous</button>
@@ -200,10 +200,7 @@
       });
     });
     
-    // Add event listener for draw box button
-    document.getElementById('draw-box').addEventListener('click', function() {
-      renderPage(currentPage, true);
-    });
+
     
     // Validate bounding box input
     function validateBBoxInput(id, value) {
@@ -240,9 +237,11 @@
         }
       }
       
-      // Enable/disable draw box button
+      // Trigger real-time drawing when all coordinates are valid
       const allCoordsValid = Object.values(bboxCoordinates).every(coord => coord !== null);
-      document.getElementById('draw-box').disabled = !allCoordsValid;
+      if (allCoordsValid && pdfDoc) {
+        renderPage(currentPage, true);
+      }
     }
     
     // Handle file selection
