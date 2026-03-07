@@ -9,8 +9,16 @@
       margin: 20px;
     }
     .container {
-      max-width: 800px;
+      max-width: 1200px;
       margin: 0 auto;
+      display: flex;
+      gap: 20px;
+    }
+    .left-panel {
+      flex: 0 0 350px;
+    }
+    .right-panel {
+      flex: 1;
     }
     .form-group {
       margin-bottom: 15px;
@@ -41,17 +49,17 @@
       cursor: not-allowed;
     }
     #pdf-container {
-      margin-top: 20px;
       border: 1px solid #ddd;
       text-align: center;
       padding: 20px;
+      min-height: 600px;
     }
     canvas {
       max-width: 100%;
       margin: 0 auto;
     }
     .pagination {
-      margin-top: 20px;
+      margin: 20px 0;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -64,58 +72,69 @@
     .page-info {
       margin: 0 10px;
     }
+    #pdf-metadata {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body>
+  <h1>PDF Viewer with Pagination</h1>
   <div class="container">
-    <h1>PDF Viewer with Pagination</h1>
-    <div class="form-group">
-      <label for="pdf-file">Select PDF file:</label>
-      <select id="pdf-file" name="pdf-file">
-        <option value="">-- Select a file --</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label for="file-upload">Upload PDF file:</label>
-      <input type="file" id="file-upload" accept=".pdf">
-      <button id="upload-button">Upload</button>
-    </div>
-    <div class="form-group">
-      <h3>Bounding Box</h3>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-        <div>
-          <label for="top-left">Top-left (x, y):</label>
-          <input type="text" id="top-left" placeholder="e.g., 100, 200">
+    <div class="left-panel">
+      <div class="form-group">
+        <label for="pdf-file">Select PDF file:</label>
+        <select id="pdf-file" name="pdf-file">
+          <option value="">-- Select a file --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="file-upload">Upload PDF file:</label>
+        <input type="file" id="file-upload" accept=".pdf">
+        <button id="upload-button">Upload</button>
+      </div>
+      <div class="form-group">
+        <h3>Bounding Box</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+          <div>
+            <label for="top-left">Top-left (x, y):</label>
+            <input type="text" id="top-left" placeholder="e.g., 100, 200">
+          </div>
+          <div>
+            <label for="top-right">Top-right (x, y):</label>
+            <input type="text" id="top-right" placeholder="e.g., 300, 200">
+          </div>
+          <div>
+            <label for="bottom-left">Bottom-left (x, y):</label>
+            <input type="text" id="bottom-left" placeholder="e.g., 100, 400">
+          </div>
+          <div>
+            <label for="bottom-right">Bottom-right (x, y):</label>
+            <input type="text" id="bottom-right" placeholder="e.g., 300, 400">
+          </div>
         </div>
-        <div>
-          <label for="top-right">Top-right (x, y):</label>
-          <input type="text" id="top-right" placeholder="e.g., 300, 200">
-        </div>
-        <div>
-          <label for="bottom-left">Bottom-left (x, y):</label>
-          <input type="text" id="bottom-left" placeholder="e.g., 100, 400">
-        </div>
-        <div>
-          <label for="bottom-right">Bottom-right (x, y):</label>
-          <input type="text" id="bottom-right" placeholder="e.g., 300, 400">
+        <div style="margin-top: 10px;">
+          <label for="unified-coords">Unified Coordinates [x1, y1, x2, y2, x3, y3, x4, y4]:</label>
+          <input type="text" id="unified-coords" placeholder="e.g., 100, 200, 300, 200, 100, 400, 300, 400" style="width: 100%;">
         </div>
       </div>
-      <div style="margin-top: 10px;">
-        <label for="unified-coords">Unified Coordinates [x1, y1, x2, y2, x3, y3, x4, y4]:</label>
-        <input type="text" id="unified-coords" placeholder="e.g., 100, 200, 300, 200, 100, 400, 300, 400" style="width: 100%;">
+      <div id="pdf-metadata">
+        <h3>PDF Metadata</h3>
+        <div id="metadata-content">Loading metadata...</div>
       </div>
     </div>
-    <div class="pagination">
-      <button id="prev-page" disabled>Previous</button>
-      <span class="page-info">Page <span id="current-page">1</span> of <span id="total-pages">0</span></span>
-      <input type="number" id="page-input" value="1" min="1">
-      <button id="next-page" disabled>Next</button>
+    <div class="right-panel">
+      <div class="pagination">
+        <button id="prev-page" disabled>Previous</button>
+        <span class="page-info">Page <span id="current-page">1</span> of <span id="total-pages">0</span></span>
+        <input type="number" id="page-input" value="1" min="1">
+        <button id="next-page" disabled>Next</button>
+      </div>
+      <div id="pdf-container"></div>
     </div>
-    <div id="pdf-metadata" style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9; border-radius: 5px;">
-      <h3>PDF Metadata</h3>
-      <div id="metadata-content">Loading metadata...</div>
-    </div>
-    <div id="pdf-container"></div>
   </div>
 
   <script type="module">
