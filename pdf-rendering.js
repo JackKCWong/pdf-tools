@@ -105,6 +105,22 @@ export function updatePagination(pageNum, total) {
 }
 
 /**
+ * Check if PDF has a text layer by extracting text from the first page
+ * @param {Object} pdf - PDF document object
+ * @returns {Promise<boolean>} - Whether the PDF has a text layer
+ */
+async function hasTextLayer(pdf) {
+  try {
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+    return content.items.length > 0;
+  } catch (error) {
+    console.error('Error checking for text layer:', error);
+    return false;
+  }
+}
+
+/**
  * Extract and display PDF metadata
  * @param {Object} pdf - PDF document object
  */
@@ -147,8 +163,17 @@ export function extractMetadata(pdf) {
       `;
     }
     
-    metadataHTML += '</table>';
-    metadataContent.innerHTML = metadataHTML;
+    // Check for text layer and add to metadata
+    hasTextLayer(pdf).then(function(hasText) {
+      metadataHTML += `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Text Layer:</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${hasText ? 'Yes' : 'No'}</td>
+        </tr>
+      `;
+      metadataHTML += '</table>';
+      metadataContent.innerHTML = metadataHTML;
+    });
   }).catch(function(error) {
     metadataContent.innerHTML = 'Error extracting metadata';
     console.error(error);
