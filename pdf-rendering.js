@@ -17,13 +17,7 @@ export function loadPDF(pdfUrl) {
     url: pdfUrl,
     isEvalSupported: false,
     useSystemFonts: true,
-    enableXfa: true,
-    useWorkerFetch: true,
-    cMapUrl: '/node_modules/pdfjs-dist/cmaps/',
-    cMapPacked: true,
-    standardFontDataUrl: '/node_modules/pdfjs-dist/standard_fonts/',
-    wasmUrl: '/node_modules/pdfjs-dist/wasm/',
-    iccUrl: '/node_modules/pdfjs-dist/iccs/'
+    enableXfa: true
   });
   loadingTask.promise.then(function(pdf) {
     pdfDoc = pdf;
@@ -35,7 +29,7 @@ export function loadPDF(pdfUrl) {
     window.totalPages = totalPages;
     updatePagination(currentPage, totalPages);
     renderPage(currentPage);
-    
+
     // Extract and display PDF metadata
     extractMetadata(pdf);
   }).catch(function(error) {

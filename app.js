@@ -1,7 +1,6 @@
 // Main application module
 
 // Import modules
-import { fetchExistingFiles, uploadFile } from './file-management.js';
 import { pdfDoc, currentPage, totalPages, loadPDF, renderPage, updatePagination } from './pdf-rendering.js';
 import { bboxCoordinates, validateBBoxInput, validateUnifiedCoordsInput, drawBoundingBox } from './bbox-handling.js';
 import { isDrawing, startX, startY, currentX, currentY, startDrawing, draw, stopDrawing } from './drawing-utils.js';
@@ -23,16 +22,13 @@ window.stopDrawing = stopDrawing;
 
 // Initialize the application
 function initApp() {
-  // Fetch files on page load
-  fetchExistingFiles();
-
-  // Add event listener for file input - auto upload on file select
+  // Add event listener for file input - load PDF directly from local file
   document.getElementById('file-upload').addEventListener('change', function() {
     const file = this.files[0];
 
     if (file) {
-      console.log('Uploading file:', file);
-      uploadFile(file);
+      const fileURL = URL.createObjectURL(file);
+      loadPDF(fileURL);
     }
   });
   
@@ -47,18 +43,6 @@ function initApp() {
   // Add event listener for unified coordinates input
   document.getElementById('unified-coords').addEventListener('input', function() {
     validateUnifiedCoordsInput(this.value);
-  });
-  
-  // Handle file selection
-  document.getElementById('pdf-file').addEventListener('change', function() {
-    const pdfUrl = this.value;
-    if (pdfUrl) {
-      loadPDF(pdfUrl);
-    } else {
-      // Clear PDF container
-      document.getElementById('pdf-container').innerHTML = '';
-      updatePagination(0, 0);
-    }
   });
   
   // Handle page navigation
