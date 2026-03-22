@@ -369,8 +369,8 @@
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
 
-      startX = (e.clientX - rect.left) * scaleX;
-      startY = (e.clientY - rect.top) * scaleY;
+      startX = Math.max(0, (e.clientX - rect.left) * scaleX);
+      startY = Math.max(0, (e.clientY - rect.top) * scaleY);
       currentX = startX;
       currentY = startY;
     }
@@ -388,8 +388,8 @@
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
 
-      currentX = (e.clientX - rect.left) * scaleX;
-      currentY = (e.clientY - rect.top) * scaleY;
+      currentX = Math.max(0, (e.clientX - rect.left) * scaleX);
+      currentY = Math.max(0, (e.clientY - rect.top) * scaleY);
 
       // Throttle render requests during drag
       if (isRendering) {
@@ -455,10 +455,10 @@
       if (!isDrawing) return;
       isDrawing = false;
 
-      const x1 = startX;
-      const y1 = startY;
-      const x2 = currentX;
-      const y2 = currentY;
+      const x1 = Math.max(0, startX);
+      const y1 = Math.max(0, startY);
+      const x2 = Math.max(0, currentX);
+      const y2 = Math.max(0, currentY);
 
       bboxCoordinates.topLeft = [x1, y1];
       bboxCoordinates.topRight = [x2, y1];
