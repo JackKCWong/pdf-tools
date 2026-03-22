@@ -2,30 +2,34 @@
 
 /**
  * Fetch existing PDF files and populate the dropdown
+ * @param {string} fileToSelect - Optional file URL to select after populating
  */
-export function fetchExistingFiles() {
+export function fetchExistingFiles(fileToSelect = null) {
   fetch('/files')
     .then(response => response.json())
     .then(data => {
       const select = document.getElementById('pdf-file');
       select.innerHTML = '<option value="">-- Select a file --</option>';
-      
+
       data.files.forEach(file => {
         const option = document.createElement('option');
         option.value = file.url;
         option.textContent = file.name;
         select.appendChild(option);
       });
-      
-      // Select the first PDF file if available
-      if (data.files.length > 0) {
+
+      // Select a specific file if provided, otherwise select the first PDF file if available
+      if (fileToSelect) {
+        select.value = fileToSelect;
+        select.dispatchEvent(new Event('change'));
+      } else if (data.files.length > 0) {
         select.value = data.files[0].url;
-        // Trigger change event to load the PDF
         select.dispatchEvent(new Event('change'));
       }
     })
     .catch(error => {
       alert('Error fetching files');
+      console.error(error);
     });
 }
 
@@ -44,15 +48,10 @@ export function uploadFile(file) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      // Refresh file list
-      fetchExistingFiles();
-      // Select the newly uploaded file (last in the list) and render
-      const select = document.getElementById('pdf-file');
-      // The uploaded file is the last one in the list
-      if (select.options.length > 1) {
-        select.selectedIndex = select.options.length - 1;
-        select.dispatchEvent(new Event('change'));
-      }
+      // Refresh file list and select the newly uploaded file
+      // Use fileUrl from server response (not data.url)
+      const uploadedFileUrl = data.fileUrl;
+      fetchExistingFiles(uploadedFileUrl);
       // Clear file input
       document.getElementById('file-upload').value = '';
     } else {
