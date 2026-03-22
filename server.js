@@ -24,6 +24,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// 根路径重定向到 pdf-viewer.html
+app.get('/', (req, res) => {
+  res.redirect('/pdf-viewer.html');
+});
+
 // 静态文件服务
 app.use(express.static(__dirname));
 app.use('/uploads', express.static(uploadsDir));

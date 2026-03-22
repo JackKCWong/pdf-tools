@@ -139,6 +139,7 @@
 
   <script type="module">
     import * as pdfjsLib from './node_modules/pdfjs-dist/build/pdf.min.mjs';
+    import './node_modules/pdfjs-dist/image_decoders/pdf.image_decoders.min.mjs';
     window.pdfjsLib = pdfjsLib;
     pdfjsLib.GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
   </script>

@@ -12,8 +12,14 @@ export let totalPages = 0;
 export function loadPDF(pdfUrl) {
   const container = document.getElementById('pdf-container');
   container.innerHTML = 'Loading PDF...';
-  
-  const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+
+  const loadingTask = pdfjsLib.getDocument({
+    url: pdfUrl,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    enableXfa: true,
+    useWorkerFetch: true
+  });
   loadingTask.promise.then(function(pdf) {
     pdfDoc = pdf;
     totalPages = pdf.numPages;
@@ -41,35 +47,45 @@ export function loadPDF(pdfUrl) {
 export function renderPage(pageNum, drawBBox = false) {
   const container = document.getElementById('pdf-container');
   container.innerHTML = '';
-  
+
   pdfDoc.getPage(pageNum).then(function(page) {
-    const scale = 1.5;
+    // Use higher scale for better quality rendering
+    const scale = 3.0;
     const viewport = page.getViewport({ scale: scale });
-    
+
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
+    
+    // Enable image smoothing for better quality
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
+    // Set CSS size to match display size (half of rendered size for retina-like effect)
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+
     container.appendChild(canvas);
-    
+
     // Store references for drawing
     window.canvas = canvas;
     window.context = context;
     window.viewport = viewport;
     window.currentPage = pageNum;
-    
+
     // Add mouse event listeners for drawing
     canvas.addEventListener('mousedown', window.startDrawing);
     canvas.addEventListener('mousemove', window.draw);
     canvas.addEventListener('mouseup', window.stopDrawing);
     canvas.addEventListener('mouseleave', window.stopDrawing);
-    
+
     const renderContext = {
       canvasContext: context,
       viewport: viewport
     };
-    
+
     const renderTask = page.render(renderContext);
     renderTask.promise.then(function() {
       // Draw bounding box if requested and all coordinates are valid
