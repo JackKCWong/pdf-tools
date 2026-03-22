@@ -132,12 +132,62 @@ export function updatePagination(pageNum, total) {
  */
 async function hasTextLayer(pdf) {
   try {
-    const page = await pdf.getPage(1);
-    const content = await page.getTextContent();
-    return content.items.length > 0;
+    // Check first page, or all pages if first page is empty
+    const pageNumsToCheck = Math.min(pdf.numPages, 3);
+    
+    for (let i = 1; i <= pageNumsToCheck; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      
+      // Check if any item has actual text content
+      const hasText = content.items.some(item => {
+        return item.str && item.str.trim().length > 0;
+      });
+      
+      if (hasText) {
+        return true;
+      }
+    }
+    
+    return false;
   } catch (error) {
     console.error('Error checking for text layer:', error);
     return false;
+  }
+}
+
+/**
+ * Extract all text from the PDF and count characters and words
+ * @param {Object} pdf - PDF document object
+ * @returns {Promise<{charCount: number, wordCount: number, hasText: boolean}>}
+ */
+async function extractTextStats(pdf) {
+  try {
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      
+      // Extract text from each item
+      const pageText = content.items.map(item => item.str || '').join(' ');
+      fullText += pageText + ' ';
+    }
+    
+    // Count characters (excluding spaces)
+    const charCount = fullText.replace(/\s/g, '').length;
+    
+    // Count words (split by whitespace, filter empty strings)
+    const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
+    const wordCount = words.length;
+    
+    // Check if there's any text
+    const hasText = charCount > 0;
+    
+    return { charCount, wordCount, hasText };
+  } catch (error) {
+    console.error('Error extracting text stats:', error);
+    return { charCount: 0, wordCount: 0, hasText: false };
   }
 }
 
@@ -147,56 +197,68 @@ async function hasTextLayer(pdf) {
  */
 export function extractMetadata(pdf) {
   const metadataContent = document.getElementById('metadata-content');
-  
-  pdf.getMetadata().then(function(data) {
-    const info = data.info || {};
+
+  // Extract text stats first and add to top of metadata
+  extractTextStats(pdf).then(function(stats) {
     let metadataHTML = '<table style="width: 100%; border-collapse: collapse;">';
     
-    const metadataFields = [
-      { label: 'Title', key: 'Title' },
-      { label: 'Author', key: 'Author' },
-      { label: 'Subject', key: 'Subject' },
-      { label: 'Keywords', key: 'Keywords' },
-      { label: 'Creation Date', key: 'CreationDate' },
-      { label: 'Modification Date', key: 'ModDate' },
-      { label: 'Producer', key: 'Producer' },
-      { label: 'Creator', key: 'Creator' }
-    ];
-    
-    metadataFields.forEach(field => {
-      if (info[field.key]) {
-        metadataHTML += `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${field.label}:</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${info[field.key]}</td>
-          </tr>
-        `;
-      }
-    });
-    
-    // Add page count if not already present
-    if (!info.PageCount) {
+    // Add text stats at the top
+    metadataHTML += `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Text Layer:</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${stats.hasText ? 'Yes' : 'No'}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Characters:</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${stats.charCount.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Words:</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${stats.wordCount.toLocaleString()}</td>
+      </tr>
+    `;
+
+    pdf.getMetadata().then(function(data) {
+      const info = data.info || {};
+
+      const metadataFields = [
+        { label: 'Title', key: 'Title' },
+        { label: 'Author', key: 'Author' },
+        { label: 'Subject', key: 'Subject' },
+        { label: 'Keywords', key: 'Keywords' },
+        { label: 'Creation Date', key: 'CreationDate' },
+        { label: 'Modification Date', key: 'ModDate' },
+        { label: 'Producer', key: 'Producer' },
+        { label: 'Creator', key: 'Creator' }
+      ];
+
+      metadataFields.forEach(field => {
+        if (info[field.key]) {
+          metadataHTML += `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${field.label}:</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${info[field.key]}</td>
+            </tr>
+          `;
+        }
+      });
+
+      // Add page count
       metadataHTML += `
         <tr>
           <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Page Count:</td>
           <td style="padding: 8px; border: 1px solid #ddd;">${pdf.numPages}</td>
         </tr>
       `;
-    }
-    
-    // Check for text layer and add to metadata
-    hasTextLayer(pdf).then(function(hasText) {
-      metadataHTML += `
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Text Layer:</td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${hasText ? 'Yes' : 'No'}</td>
-        </tr>
-      `;
+
       metadataHTML += '</table>';
       metadataContent.innerHTML = metadataHTML;
+    }).catch(function(error) {
+      metadataContent.innerHTML = 'Error extracting metadata';
+      console.error(error);
     });
   }).catch(function(error) {
-    metadataContent.innerHTML = 'Error extracting metadata';
+    metadataContent.innerHTML = 'Error extracting text stats';
     console.error(error);
   });
 }
