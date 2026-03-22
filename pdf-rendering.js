@@ -18,7 +18,11 @@ export function loadPDF(pdfUrl) {
     isEvalSupported: false,
     useSystemFonts: true,
     enableXfa: true,
-    useWorkerFetch: true
+    useWorkerFetch: true,
+    cMapUrl: '/node_modules/pdfjs-dist/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: '/node_modules/pdfjs-dist/standard_fonts/',
+    wasmUrl: '/node_modules/pdfjs-dist/wasm/'
   });
   loadingTask.promise.then(function(pdf) {
     pdfDoc = pdf;
