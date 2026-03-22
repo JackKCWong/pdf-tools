@@ -36,7 +36,7 @@ export function fetchExistingFiles() {
 export function uploadFile(file) {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   fetch('/upload', {
     method: 'POST',
     body: formData
@@ -44,9 +44,15 @@ export function uploadFile(file) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      alert('File uploaded successfully');
       // Refresh file list
       fetchExistingFiles();
+      // Select the newly uploaded file (last in the list) and render
+      const select = document.getElementById('pdf-file');
+      // The uploaded file is the last one in the list
+      if (select.options.length > 1) {
+        select.selectedIndex = select.options.length - 1;
+        select.dispatchEvent(new Event('change'));
+      }
       // Clear file input
       document.getElementById('file-upload').value = '';
     } else {

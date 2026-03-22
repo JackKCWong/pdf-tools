@@ -25,17 +25,14 @@ window.stopDrawing = stopDrawing;
 function initApp() {
   // Fetch files on page load
   fetchExistingFiles();
-  
-  // Add event listener for upload button
-  document.getElementById('upload-button').addEventListener('click', function() {
-    const fileInput = document.getElementById('file-upload');
-    const file = fileInput.files[0];
-    
+
+  // Add event listener for file input - auto upload on file select
+  document.getElementById('file-upload').addEventListener('change', function() {
+    const file = this.files[0];
+
     if (file) {
       console.log('Uploading file:', file);
       uploadFile(file);
-    } else {
-      alert('Please select a PDF file to upload');
     }
   });
   
