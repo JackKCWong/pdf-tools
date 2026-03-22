@@ -22,7 +22,8 @@ export function loadPDF(pdfUrl) {
     cMapUrl: '/node_modules/pdfjs-dist/cmaps/',
     cMapPacked: true,
     standardFontDataUrl: '/node_modules/pdfjs-dist/standard_fonts/',
-    wasmUrl: '/node_modules/pdfjs-dist/wasm/'
+    wasmUrl: '/node_modules/pdfjs-dist/wasm/',
+    iccUrl: '/node_modules/pdfjs-dist/iccs/'
   });
   loadingTask.promise.then(function(pdf) {
     pdfDoc = pdf;

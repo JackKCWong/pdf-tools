@@ -41,6 +41,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/node_modules/pdfjs-dist/cmaps', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'cmaps')));
 app.use('/node_modules/pdfjs-dist/standard_fonts', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'standard_fonts')));
 app.use('/node_modules/pdfjs-dist/wasm', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'wasm')));
+app.use('/node_modules/pdfjs-dist/icc', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'iccs')));
 
 // 文件上传路由
 app.post('/upload', upload.single('file'), (req, res) => {
