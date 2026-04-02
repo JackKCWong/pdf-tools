@@ -48,6 +48,46 @@
       background-color: #cccccc;
       cursor: not-allowed;
     }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .copy-btn.copied {
+      background-color: #2196F3;
+    }
+    .copy-btn.copied::before {
+      content: "✓";
+      font-weight: bold;
+    }
+    .progress-container {
+      width: 150px;
+      height: 40px;
+      margin-right: 5px;
+      display: flex;
+      align-items: center;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f0f0f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      position: absolute;
+      font-size: 12px;
+      color: white;
+      text-align: center;
+      width: 150px;
+      text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+    }
     #pdf-container {
       border: 1px solid #ddd;
       text-align: center;
@@ -125,6 +165,13 @@
         <span class="page-info">Page <span id="current-page">1</span> of <span id="total-pages">0</span></span>
         <input type="number" id="page-input" value="1" min="1">
         <button id="next-page" disabled>Next</button>
+        <button id="ocr-page" disabled>OCR Current Page</button>
+        <div id="ocr-progress" class="progress-container" style="display: none;">
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
+          </div>
+          <div class="progress-text">0%</div>
+        </div>
       </div>
       <div id="pdf-container"></div>
     </div>
@@ -134,6 +181,8 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
+  <!-- v5 -->
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 
   <script>
     // PDF rendering variables
@@ -271,6 +320,77 @@
 
       document.getElementById('prev-page').disabled = pageNum <= 1;
       document.getElementById('next-page').disabled = pageNum >= total;
+      document.getElementById('ocr-page').disabled = !pdfDoc;
+    }
+
+    /**
+     * Perform OCR on the current page
+     */
+    async function performOCR() {
+      const canvas = window.canvas;
+      if (!canvas) {
+        console.error('No canvas element found');
+        return;
+      }
+
+      // Get UI elements
+      const ocrButton = document.getElementById('ocr-page');
+      const progressContainer = document.getElementById('ocr-progress');
+      const progressFill = progressContainer.querySelector('.progress-fill');
+      const progressText = progressContainer.querySelector('.progress-text');
+
+      // Hide button and show progress bar
+      ocrButton.style.display = 'none';
+      progressContainer.style.display = 'flex';
+
+      try {
+        console.log('Starting OCR on page', currentPage);
+        
+        // Convert canvas to data URL
+        const imageData = canvas.toDataURL('image/png');
+        
+        // Perform OCR using Tesseract.js
+        let maxProgress = 0;
+        const result = await Tesseract.recognize(
+          imageData,
+          'eng', // English language
+          {
+            logger: info => {
+              console.log(info);
+              // Update progress bar
+              if (info.progress) {
+                const progress = Math.round(info.progress * 100);
+                // Only update if progress is greater than or equal to current max
+                if (progress >= maxProgress) {
+                  maxProgress = progress;
+                  progressFill.style.width = `${progress}%`;
+                  progressText.textContent = `${progress}%`;
+                }
+              }
+            }
+          }
+        );
+        
+        console.log('OCR Result for page', currentPage);
+        console.log('Extracted Text:', result.data.text);
+        console.log('Confidence:', result.data.confidence);
+        
+        // Show OCR results in modal
+        const ocrModal = document.getElementById('ocr-modal');
+        const ocrText = document.getElementById('ocr-text');
+        ocrText.textContent = result.data.text;
+        ocrModal.style.display = 'block';
+      } catch (error) {
+        console.error('OCR error:', error);
+        alert('OCR failed. Check console for details.');
+      } finally {
+        // Restore button and hide progress bar
+        ocrButton.style.display = 'inline-block';
+        progressContainer.style.display = 'none';
+        // Reset progress bar
+        progressFill.style.width = '0%';
+        progressText.textContent = '0%';
+      }
     }
 
     /**
@@ -642,6 +762,43 @@
         this.value = pageNum;
         renderPage(pageNum);
       });
+
+      document.getElementById('ocr-page').addEventListener('click', performOCR);
+
+      // Modal close functionality
+      document.getElementById('close-modal').addEventListener('click', function() {
+        document.getElementById('ocr-modal').style.display = 'none';
+      });
+
+      document.getElementById('close-modal-btn').addEventListener('click', function() {
+        document.getElementById('ocr-modal').style.display = 'none';
+      });
+
+      // Close modal when clicking outside
+      window.addEventListener('click', function(event) {
+        const modal = document.getElementById('ocr-modal');
+        if (event.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+
+      // Copy to clipboard functionality
+      document.getElementById('copy-to-clipboard').addEventListener('click', function() {
+        const copyBtn = this;
+        const ocrText = document.getElementById('ocr-text').textContent;
+        navigator.clipboard.writeText(ocrText).then(function() {
+          const originalText = copyBtn.textContent;
+          copyBtn.classList.add('copied');
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() {
+            copyBtn.classList.remove('copied');
+            copyBtn.textContent = originalText;
+          }, 2000);
+        }).catch(function(err) {
+          console.error('Failed to copy text: ', err);
+          alert('Failed to copy text. Please try again.');
+        });
+      });
     }
 
     // Start the application when the DOM is loaded
@@ -651,5 +808,23 @@
       initApp();
     }
   </script>
+
+  <!-- OCR Results Modal -->
+  <div id="ocr-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 5px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>OCR Results</h2>
+        <button id="close-modal" style="background: none; border: none; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</button>
+      </div>
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Extracted Text:</label>
+        <pre id="ocr-text" style="background-color: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 400px; overflow-y: auto; white-space: pre-wrap;"></pre>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="copy-to-clipboard" class="copy-btn" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 3px;">Copy to Clipboard</button>
+        <button id="close-modal-btn" style="padding: 10px 20px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 3px;">Close</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
