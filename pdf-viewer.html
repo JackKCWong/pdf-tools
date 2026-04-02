@@ -130,6 +130,20 @@
         <input type="file" id="file-upload" accept=".pdf">
       </div>
       <div class="form-group">
+        <label for="ocr-language">OCR Language:</label>
+        <select id="ocr-language">
+          <option value="eng">English</option>
+          <option value="chi_sim">Chinese (Simplified)</option>
+          <option value="chi_tra">Chinese (Traditional)</option>
+          <option value="spa">Spanish</option>
+          <option value="fra">French</option>
+          <option value="deu">German</option>
+          <option value="jpn">Japanese</option>
+          <option value="kor">Korean</option>
+          <option value="rus">Russian</option>
+        </select>
+      </div>
+      <div class="form-group">
         <h3>Bounding Box</h3>
         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
           <div>
@@ -250,14 +264,18 @@
       }
 
       pdfDoc.getPage(pageNum).then(function(page) {
-        const scale = 3.0;
+        // Higher scale for better OCR quality
+        const scale = 4.0;
         const viewport = page.getViewport({ scale: scale });
 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
 
+        // Optimize rendering settings for OCR
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = 'high';
+        context.textBaseline = 'top';
+        context.textRendering = 'optimizeLegibility';
 
         canvas.height = viewport.height;
         canvas.width = viewport.width;
@@ -324,6 +342,58 @@
     }
 
     /**
+     * Preprocess image for better OCR results
+     */
+    function preprocessImage(canvas, cropRegion = null) {
+      const tempCanvas = document.createElement('canvas');
+      
+      if (cropRegion) {
+        const { x, y, width, height } = cropRegion;
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+      } else {
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+      }
+      
+      const tempContext = tempCanvas.getContext('2d');
+      
+      // Draw and crop if region is specified
+      if (cropRegion) {
+        const { x, y, width, height } = cropRegion;
+        tempContext.drawImage(canvas, x, y, width, height, 0, 0, width, height);
+      } else {
+        tempContext.drawImage(canvas, 0, 0);
+      }
+      
+      // 1. Convert to grayscale
+      tempContext.filter = 'grayscale(100%)';
+      tempContext.drawImage(tempCanvas, 0, 0);
+      
+      // 2. Apply thresholding
+      const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      const data = imageData.data;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = data[i];
+        const threshold = 128;
+        const value = gray > threshold ? 255 : 0;
+        data[i] = value;     // Red
+        data[i + 1] = value; // Green
+        data[i + 2] = value; // Blue
+        // Alpha remains the same
+      }
+      
+      tempContext.putImageData(imageData, 0, 0);
+      
+      // 3. Apply slight blur to reduce noise
+      tempContext.filter = 'blur(0.5px)';
+      tempContext.drawImage(tempCanvas, 0, 0);
+      
+      return tempCanvas;
+    }
+
+    /**
      * Perform OCR on the current page
      */
     async function performOCR() {
@@ -346,14 +416,36 @@
       try {
         console.log('Starting OCR on page', currentPage);
         
+        // Check if bounding box coordinates are set
+        let cropRegion = null;
+        const { topLeft, topRight, bottomLeft, bottomRight } = bboxCoordinates;
+        if (topLeft && topRight && bottomLeft && bottomRight) {
+          // Calculate crop region from bounding box
+          const x = Math.min(topLeft[0], topRight[0], bottomLeft[0], bottomRight[0]);
+          const y = Math.min(topLeft[1], topRight[1], bottomLeft[1], bottomRight[1]);
+          const width = Math.max(topLeft[0], topRight[0], bottomLeft[0], bottomRight[0]) - x;
+          const height = Math.max(topLeft[1], topRight[1], bottomLeft[1], bottomRight[1]) - y;
+          
+          if (width > 0 && height > 0) {
+            cropRegion = { x, y, width, height };
+            console.log('Using bounding box for OCR:', cropRegion);
+          }
+        }
+        
+        // Preprocess image for better OCR results
+        const preprocessedCanvas = preprocessImage(canvas, cropRegion);
+        
         // Convert canvas to data URL
-        const imageData = canvas.toDataURL('image/png');
+        const imageData = preprocessedCanvas.toDataURL('image/png');
+        
+        // Get selected OCR language
+        const selectedLanguage = document.getElementById('ocr-language').value;
         
         // Perform OCR using Tesseract.js
         let maxProgress = 0;
         const result = await Tesseract.recognize(
           imageData,
-          'eng', // English language
+          selectedLanguage, // Selected language
           {
             logger: info => {
               console.log(info);
@@ -367,14 +459,54 @@
                   progressText.textContent = `${progress}%`;
                 }
               }
-            }
+            },
+            // Optimized OCR parameters for better accuracy
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?;:-()[]{}',
+            tessedit_pageseg_mode: 3, // Auto page segmentation with orientation and script detection
+            tessedit_ocr_engine_mode: 3, // Default OCR engine mode
+            preserve_interword_spaces: '1',
+            user_defined_dpi: 300
           }
         );
+        
+        // Calculate confidence score
+        let totalConfidence = 0;
+        let wordCount = 0;
+        
+        if (result.data.words && result.data.words.length > 0) {
+          result.data.words.forEach(word => {
+            if (word.confidence !== undefined) {
+              totalConfidence += word.confidence;
+              wordCount++;
+            }
+          });
+        }
+        
+        const averageConfidence = wordCount > 0 ? (totalConfidence / wordCount).toFixed(2) : 'N/A';
         
         // Show OCR results in modal
         const ocrModal = document.getElementById('ocr-modal');
         const ocrText = document.getElementById('ocr-text');
+        const ocrConfidence = document.getElementById('ocr-confidence');
+        
         ocrText.textContent = result.data.text;
+        ocrConfidence.textContent = `${averageConfidence}%`;
+        
+        // Set confidence color based on score
+        if (averageConfidence !== 'N/A') {
+          const confidenceValue = parseFloat(averageConfidence);
+          if (confidenceValue >= 90) {
+            ocrConfidence.style.backgroundColor = '#e8f5e8'; // Green
+            ocrConfidence.style.color = '#2e7d32';
+          } else if (confidenceValue >= 70) {
+            ocrConfidence.style.backgroundColor = '#fff8e1'; // Yellow
+            ocrConfidence.style.color = '#ef6c00';
+          } else {
+            ocrConfidence.style.backgroundColor = '#ffebee'; // Red
+            ocrConfidence.style.color = '#c62828';
+          }
+        }
+        
         ocrModal.style.display = 'block';
       } catch (error) {
         console.error('OCR error:', error);
@@ -811,6 +943,10 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>OCR Results</h2>
         <button id="close-modal" style="background: none; border: none; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</button>
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Confidence Score:</label>
+        <div id="ocr-confidence" style="padding: 8px; background-color: #e8f5e8; border-radius: 3px; font-weight: bold;">Calculating...</div>
       </div>
       <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Extracted Text:</label>
