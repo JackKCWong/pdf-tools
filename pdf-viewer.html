@@ -133,19 +133,9 @@
         <label for="file-upload">Select PDF file:</label>
         <input type="file" id="file-upload" accept=".pdf">
       </div>
-      <div class="form-group">
-        <label for="ocr-language">OCR Language:</label>
-        <select id="ocr-language">
-          <option value="eng">English</option>
-          <option value="chi_sim">Chinese (Simplified)</option>
-          <option value="chi_tra">Chinese (Traditional)</option>
-          <option value="spa">Spanish</option>
-          <option value="fra">French</option>
-          <option value="deu">German</option>
-          <option value="jpn">Japanese</option>
-          <option value="kor">Korean</option>
-          <option value="rus">Russian</option>
-        </select>
+      <div id="pdf-metadata">
+        <h3>PDF Metadata</h3>
+        <div id="metadata-content">Loading metadata...</div>
       </div>
       <div class="form-group">
         <h3>Bounding Box</h3>
@@ -172,10 +162,6 @@
           <input type="text" id="unified-coords" placeholder="e.g., 100, 200, 300, 200, 100, 400, 300, 400" style="width: 100%;">
         </div>
       </div>
-      <div id="pdf-metadata">
-        <h3>PDF Metadata</h3>
-        <div id="metadata-content">Loading metadata...</div>
-      </div>
     </div>
     <div class="right-panel">
       <div class="pagination">
@@ -184,6 +170,17 @@
         <input type="number" id="page-input" value="1" min="1">
         <button id="next-page" disabled>Next</button>
         <button id="ocr-page" disabled>OCR Current Page</button>
+        <select id="ocr-language" style="margin-left: 10px;">
+          <option value="eng">English</option>
+          <option value="chi_sim">Chinese (Simplified)</option>
+          <option value="chi_tra">Chinese (Traditional)</option>
+          <option value="spa">Spanish</option>
+          <option value="fra">French</option>
+          <option value="deu">German</option>
+          <option value="jpn">Japanese</option>
+          <option value="kor">Korean</option>
+          <option value="rus">Russian</option>
+        </select>
         <div id="ocr-progress" class="progress-container" style="display: none;">
           <div class="progress-bar">
             <div class="progress-fill"></div>
