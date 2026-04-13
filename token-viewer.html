@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Viewer - LLM Cost Estimator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .model-selector {
+            margin-bottom: 20px;
+        }
+
+        .model-selector label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .model-selector select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .pricing-info {
+            background: #e8f4f8;
+            border: 1px solid #b8e0ed;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #2c5f7c;
+        }
+
+        .pricing-info strong {
+            color: #1a4a5e;
+        }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-group {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #4a90d9;
+            box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+        }
+
+        .token-count {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .token-count span {
+            font-weight: 600;
+            color: #4a90d9;
+        }
+
+        .results-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .results-section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        .cost-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .cost-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .cost-item .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .cost-item .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .cost-item .subtext {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .cost-item.highlight {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+        }
+
+        .cost-item.highlight .value {
+            color: #856404;
+        }
+
+        .context-window {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f0f7ff;
+            border-radius: 6px;
+            border: 1px solid #b3d4fc;
+        }
+
+        .context-window h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .context-bar-container {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .context-bar-label {
+            font-size: 13px;
+            color: #555;
+            min-width: 100px;
+        }
+
+        .context-bar-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-bar {
+            height: 24px;
+            border-radius: 4px;
+            background: #e0e0e0;
+            position: relative;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .context-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .context-bar-fill.input {
+            background: linear-gradient(90deg, #4a90d9, #357abd);
+        }
+
+        .context-bar-fill.output {
+            background: linear-gradient(90deg, #5cb85c, #4cae4c);
+        }
+
+        .context-bar-fill.total {
+            background: linear-gradient(90deg, #f0ad4e, #ec971f);
+        }
+
+        .context-bar-percentage {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .context-window-size {
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .context-window-size span {
+            font-weight: 600;
+            color: #4a90d9;
+        }
+
+        .override-section {
+            background: #fff9e6;
+            border: 1px solid #ffe066;
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .override-section h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .override-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .override-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .override-item label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .override-item input {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+
+        .override-item input:focus {
+            outline: none;
+            border-color: #4a90d9;
+            box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+        }
+
+        .override-item .hint {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .override-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .override-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .override-toggle label {
+            font-size: 13px;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔢 Token Viewer - LLM Cost Estimator</h1>
+
+        <div class="model-selector">
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect">
+                <optgroup label="GPT-5 Family" id="gpt5Group">
+                    <option value="gpt-5-family">GPT-5 (5, 5.1, 5.2, 5.3, 5.4) - Input: $1.25/M, Output: $10.00/M</option>
+                    <option value="gpt-5-mini-family">GPT-5 mini (5, 5.1, 5.2, 5.3, 5.4) - Input: $0.25/M, Output: $2.00/M</option>
+                    <option value="gpt-5-nano-family">GPT-5 nano (5, 5.1, 5.2, 5.3, 5.4) - Input: $0.05/M, Output: $0.40/M</option>
+                </optgroup>
+                <optgroup label="GPT-4 Family" id="gpt4Group">
+                    <option value="gpt-4o">GPT-4o - Input: $2.50/M, Output: $10.00/M</option>
+                    <option value="gpt-4o-mini">GPT-4o mini - Input: $0.15/M, Output: $0.60/M</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo - Input: $10.00/M, Output: $30.00/M</option>
+                </optgroup>
+                <optgroup label="Legacy" id="legacyGroup">
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo - Input: $0.50/M, Output: $1.50/M</option>
+                </optgroup>
+                <optgroup label="o-series" id="oSeriesGroup">
+                    <option value="o1">o1 - Input: $15.00/M, Output: $60.00/M</option>
+                    <option value="o1-mini">o1-mini - Input: $1.10/M, Output: $4.40/M</option>
+                    <option value="o3-mini">o3-mini - Input: $1.10/M, Output: $4.40/M</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <div class="pricing-info">
+            <strong>Pricing:</strong> <span id="pricingDisplay">GPT-4o</span> - Input: <span id="inputPrice"></span>/M tokens, Output: <span id="outputPrice"></span>/M tokens
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="input-section">
+            <div class="input-group">
+                <label for="promptInput">💬 LLM Prompt (Input)</label>
+                <textarea id="promptInput" placeholder="Enter your prompt here..."></textarea>
+                <div class="token-count">Tokens: <span id="inputTokenCount">0</span></div>
+            </div>
+            <div class="input-group">
+                <label for="outputInput">🤖 LLM Output (Completion)</label>
+                <textarea id="outputInput" placeholder="Enter the LLM's response here..."></textarea>
+                <div class="token-count">Tokens: <span id="outputTokenCount">0</span></div>
+            </div>
+        </div>
+
+        <div class="results-section">
+            <h2>💰 Cost Estimation</h2>
+            <div class="cost-breakdown">
+                <div class="cost-item">
+                    <div class="label">Input Tokens</div>
+                    <div class="value" id="inputTokensDisplay">0</div>
+                    <div class="subtext" id="inputCost">$0.000000</div>
+                </div>
+                <div class="cost-item">
+                    <div class="label">Output Tokens</div>
+                    <div class="value" id="outputTokensDisplay">0</div>
+                    <div class="subtext" id="outputCost">$0.000000</div>
+                </div>
+                <div class="cost-item">
+                    <div class="label">Total Tokens</div>
+                    <div class="value" id="totalTokens">0</div>
+                    <div class="subtext">Combined</div>
+                </div>
+                <div class="cost-item highlight">
+                    <div class="label">Estimated Total Cost</div>
+                    <div class="value" id="totalCost">$0.000000</div>
+                    <div class="subtext" id="totalCostReadable">$0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-section">
+            <h2>📊 Context Window Usage</h2>
+            <div class="context-window">
+                <h3>Context Window Utilization</h3>
+                <div class="context-bar-container">
+                    <div class="context-bar-label">Input</div>
+                    <div class="context-bar-wrapper">
+                        <div class="context-bar">
+                            <div class="context-bar-fill input" id="inputContextBar" style="width: 0%"></div>
+                        </div>
+                        <div class="context-bar-percentage" id="inputContextPercentage">0.00%</div>
+                    </div>
+                </div>
+                <div class="context-bar-container">
+                    <div class="context-bar-label">Output</div>
+                    <div class="context-bar-wrapper">
+                        <div class="context-bar">
+                            <div class="context-bar-fill output" id="outputContextBar" style="width: 0%"></div>
+                        </div>
+                        <div class="context-bar-percentage" id="outputContextPercentage">0.00%</div>
+                    </div>
+                </div>
+                <div class="context-bar-container">
+                    <div class="context-bar-label">Total Used</div>
+                    <div class="context-bar-wrapper">
+                        <div class="context-bar">
+                            <div class="context-bar-fill total" id="totalContextBar" style="width: 0%"></div>
+                        </div>
+                        <div class="context-bar-percentage" id="totalContextPercentage">0.00%</div>
+                    </div>
+                </div>
+                <div class="context-window-size">
+                    Model Context Window: <span id="contextWindowSize">256,000</span> tokens
+                </div>
+
+                <div class="override-section">
+                    <h3>⚙️ Manual Override</h3>
+                    <div class="override-toggle">
+                        <input type="checkbox" id="enableOverride">
+                        <label for="enableOverride">Enable custom values</label>
+                    </div>
+                    <div class="override-grid" id="overrideGrid" style="display: none;">
+                        <div class="override-item">
+                            <label for="overrideContextWindow">Context Window Size</label>
+                            <input type="number" id="overrideContextWindow" placeholder="e.g., 128000" min="1">
+                            <div class="hint">Leave blank to use model default</div>
+                        </div>
+                        <div class="override-item">
+                            <label for="overrideInputPrice">Input Price ($/M tokens)</label>
+                            <input type="number" id="overrideInputPrice" placeholder="e.g., 2.50" min="0" step="0.01">
+                            <div class="hint">Leave blank to use model default</div>
+                        </div>
+                        <div class="override-item">
+                            <label for="overrideOutputPrice">Output Price ($/M tokens)</label>
+                            <input type="number" id="overrideOutputPrice" placeholder="e.g., 10.00" min="0" step="0.01">
+                            <div class="hint">Leave blank to use model default</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "js-tiktoken": "https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/dist/index.js",
+            "js-tiktoken/lite": "https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/dist/lite.js",
+            "js-tiktoken/ranks/cl100k_base": "https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/dist/ranks/cl100k_base.js",
+            "js-tiktoken/ranks/o200k_base": "https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/dist/ranks/o200k_base.js",
+            "base64-js": "https://cdn.jsdelivr.net/npm/base64-js@1.5.1/+esm"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import { Tiktoken } from "js-tiktoken";
+        import cl100k_base from "js-tiktoken/ranks/cl100k_base";
+        import o200k_base from "js-tiktoken/ranks/o200k_base";
+
+        const ENCodings = {
+            cl100k_base,
+            o200k_base
+        };
+
+        // Model pricing (per 1M tokens) and context windows
+        const MODEL_PRICING = {
+            'gpt-5-family': { input: 1.25, output: 10.00, encoding: 'o200k_base', name: 'GPT-5 Family', contextWindow: 256000 },
+            'gpt-5-mini-family': { input: 0.25, output: 2.00, encoding: 'o200k_base', name: 'GPT-5 mini Family', contextWindow: 256000 },
+            'gpt-5-nano-family': { input: 0.05, output: 0.40, encoding: 'o200k_base', name: 'GPT-5 nano Family', contextWindow: 256000 },
+            'gpt-4o': { input: 2.50, output: 10.00, encoding: 'o200k_base', name: 'GPT-4o', contextWindow: 128000 },
+            'gpt-4o-mini': { input: 0.15, output: 0.60, encoding: 'o200k_base', name: 'GPT-4o mini', contextWindow: 128000 },
+            'gpt-4-turbo': { input: 10.00, output: 30.00, encoding: 'cl100k_base', name: 'GPT-4 Turbo', contextWindow: 128000 },
+            'gpt-3.5-turbo': { input: 0.50, output: 1.50, encoding: 'cl100k_base', name: 'GPT-3.5 Turbo', contextWindow: 16385 },
+            'o1': { input: 15.00, output: 60.00, encoding: 'o200k_base', name: 'o1', contextWindow: 200000 },
+            'o1-mini': { input: 1.10, output: 4.40, encoding: 'o200k_base', name: 'o1-mini', contextWindow: 128000 },
+            'o3-mini': { input: 1.10, output: 4.40, encoding: 'o200k_base', name: 'o3-mini', contextWindow: 200000 }
+        };
+
+        let encoder = null;
+        let encodingsLoaded = false;
+
+        const promptInput = document.getElementById('promptInput');
+        const outputInput = document.getElementById('outputInput');
+        const modelSelect = document.getElementById('modelSelect');
+        const enableOverride = document.getElementById('enableOverride');
+        const overrideGrid = document.getElementById('overrideGrid');
+        const overrideContextWindow = document.getElementById('overrideContextWindow');
+        const overrideInputPrice = document.getElementById('overrideInputPrice');
+        const overrideOutputPrice = document.getElementById('overrideOutputPrice');
+
+        function getSelectedModel() {
+            return modelSelect.value;
+        }
+
+        function getModelConfig() {
+            const model = MODEL_PRICING[getSelectedModel()];
+
+            // Apply overrides if enabled
+            if (enableOverride.checked) {
+                return {
+                    ...model,
+                    contextWindow: overrideContextWindow.value ? parseInt(overrideContextWindow.value) : model.contextWindow,
+                    input: overrideInputPrice.value ? parseFloat(overrideInputPrice.value) : model.input,
+                    output: overrideOutputPrice.value ? parseFloat(overrideOutputPrice.value) : model.output
+                };
+            }
+
+            return model;
+        }
+
+        function updatePricingDisplay() {
+            const model = getModelConfig();
+            document.getElementById('pricingDisplay').textContent = model.name + (enableOverride.checked ? ' (overridden)' : '');
+            document.getElementById('inputPrice').textContent = `$${model.input.toFixed(2)}`;
+            document.getElementById('outputPrice').textContent = `$${model.output.toFixed(2)}`;
+        }
+
+        function countTokens(text) {
+            if (!encoder || !text) return 0;
+            const tokens = encoder.encode(text);
+            return tokens.length;
+        }
+
+        function calculateCost(inputTokens, outputTokens) {
+            const model = getModelConfig();
+            const inputCost = (inputTokens / 1000000) * model.input;
+            const outputCost = (outputTokens / 1000000) * model.output;
+            return {
+                inputCost,
+                outputCost,
+                totalCost: inputCost + outputCost
+            };
+        }
+
+        function formatCost(cost) {
+            if (cost < 0.000001) return '$0.000000';
+            if (cost < 0.001) return `$${cost.toFixed(6)}`;
+            if (cost < 1) return `$${cost.toFixed(4)}`;
+            return `$${cost.toFixed(2)}`;
+        }
+
+        function updateEstimation() {
+            const inputText = promptInput.value;
+            const outputText = outputInput.value;
+
+            const inputTokens = countTokens(inputText);
+            const outputTokens = countTokens(outputText);
+
+            document.getElementById('inputTokenCount').textContent = inputTokens;
+            document.getElementById('outputTokenCount').textContent = outputTokens;
+
+            document.getElementById('inputTokensDisplay').textContent = inputTokens.toLocaleString();
+            document.getElementById('outputTokensDisplay').textContent = outputTokens.toLocaleString();
+            document.getElementById('totalTokens').textContent = (inputTokens + outputTokens).toLocaleString();
+
+            const cost = calculateCost(inputTokens, outputTokens);
+            document.getElementById('inputCost').textContent = formatCost(cost.inputCost);
+            document.getElementById('outputCost').textContent = formatCost(cost.outputCost);
+            document.getElementById('totalCost').textContent = formatCost(cost.totalCost);
+
+            // Readable format
+            if (cost.totalCost < 0.01) {
+                document.getElementById('totalCostReadable').textContent = `$${(cost.totalCost * 100).toFixed(4)}¢`;
+            } else {
+                document.getElementById('totalCostReadable').textContent = formatCost(cost.totalCost);
+            }
+
+            // Update context window usage
+            const model = getModelConfig();
+            const contextWindow = model.contextWindow;
+            
+            const inputPercentage = (inputTokens / contextWindow) * 100;
+            const outputPercentage = (outputTokens / contextWindow) * 100;
+            const totalPercentage = ((inputTokens + outputTokens) / contextWindow) * 100;
+
+            document.getElementById('inputContextBar').style.width = `${Math.min(inputPercentage, 100)}%`;
+            document.getElementById('outputContextBar').style.width = `${Math.min(outputPercentage, 100)}%`;
+            document.getElementById('totalContextBar').style.width = `${Math.min(totalPercentage, 100)}%`;
+
+            document.getElementById('inputContextPercentage').textContent = `${inputPercentage.toFixed(2)}%`;
+            document.getElementById('outputContextPercentage').textContent = `${outputPercentage.toFixed(2)}%`;
+            document.getElementById('totalContextPercentage').textContent = `${totalPercentage.toFixed(2)}%`;
+
+            document.getElementById('contextWindowSize').textContent = contextWindow.toLocaleString();
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        // Initialize encoder
+        async function initEncoder() {
+            try {
+                const model = getModelConfig();
+                const encoding = ENCodings[model.encoding];
+                encoder = new Tiktoken(encoding);
+                clearError();
+                updateEstimation();
+            } catch (error) {
+                console.error('Error initializing tokenizer:', error);
+                showError('Failed to initialize tokenizer. Please check your internet connection and try refreshing.');
+            }
+        }
+
+        // Event listeners
+        promptInput.addEventListener('input', updateEstimation);
+        outputInput.addEventListener('input', updateEstimation);
+
+        modelSelect.addEventListener('change', async () => {
+            updatePricingDisplay();
+            await initEncoder();
+        });
+
+        enableOverride.addEventListener('change', () => {
+            overrideGrid.style.display = enableOverride.checked ? 'grid' : 'none';
+            updatePricingDisplay();
+            updateEstimation();
+        });
+
+        overrideContextWindow.addEventListener('input', () => {
+            updatePricingDisplay();
+            updateEstimation();
+        });
+
+        overrideInputPrice.addEventListener('input', () => {
+            updatePricingDisplay();
+            updateEstimation();
+        });
+
+        overrideOutputPrice.addEventListener('input', () => {
+            updatePricingDisplay();
+            updateEstimation();
+        });
+
+        // Initialize
+        updatePricingDisplay();
+        initEncoder();
+    </script>
+</body>
+</html>
