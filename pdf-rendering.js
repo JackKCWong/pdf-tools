@@ -153,35 +153,48 @@ async function hasTextLayer(pdf) {
 /**
  * Extract all text from the PDF and count characters and words
  * @param {Object} pdf - PDF document object
- * @returns {Promise<{charCount: number, wordCount: number, hasText: boolean}>}
+ * @returns {Promise<{charCount: number, wordCount: number, tokenCount: number, hasText: boolean}>}
  */
 async function extractTextStats(pdf) {
   try {
     let fullText = '';
-    
+
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      
+
       // Extract text from each item
       const pageText = content.items.map(item => item.str || '').join(' ');
       fullText += pageText + ' ';
     }
-    
+
     // Count characters (excluding spaces)
     const charCount = fullText.replace(/\s/g, '').length;
-    
+
     // Count words (split by whitespace, filter empty strings)
     const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
     const wordCount = words.length;
-    
+
     // Check if there's any text
     const hasText = charCount > 0;
-    
-    return { charCount, wordCount, hasText };
+
+    // Count tokens using js-tiktoken if text is available
+    let tokenCount = 0;
+    if (hasText) {
+      try {
+        const { getEncoding } = await import('https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/+esm');
+        const enc = getEncoding('cl100k_base');
+        tokenCount = enc.encode(fullText).length;
+      } catch (error) {
+        console.error('Error tokenizing text:', error);
+        tokenCount = 0;
+      }
+    }
+
+    return { charCount, wordCount, tokenCount, hasText };
   } catch (error) {
     console.error('Error extracting text stats:', error);
-    return { charCount: 0, wordCount: 0, hasText: false };
+    return { charCount: 0, wordCount: 0, tokenCount: 0, hasText: false };
   }
 }
 
@@ -209,6 +222,10 @@ export function extractMetadata(pdf) {
       <tr>
         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Words:</td>
         <td style="padding: 8px; border: 1px solid #ddd;">${stats.wordCount.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tokens:</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${stats.tokenCount > 0 ? stats.tokenCount.toLocaleString() : 'N/A'}</td>
       </tr>
     `;
 
