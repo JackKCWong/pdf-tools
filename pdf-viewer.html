@@ -60,6 +60,10 @@
       content: "✓";
       font-weight: bold;
     }
+    .copy-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .progress-container {
       width: 150px;
       height: 40px;
@@ -252,6 +256,28 @@
     }
 
     /**
+     * Update copy button states based on current page text availability
+     */
+    function updateCopyButtonStates() {
+      const copyCurrentBtn = document.getElementById('copy-current-text');
+      if (copyCurrentBtn) {
+        const currentPageText = window.textLayer[currentPage] || '';
+        const hasCurrentPageText = currentPageText.trim().length > 0;
+        copyCurrentBtn.disabled = !hasCurrentPageText;
+
+        // Remove any existing listener before adding a new one
+        const newBtn = copyCurrentBtn.cloneNode(true);
+        copyCurrentBtn.parentNode.replaceChild(newBtn, copyCurrentBtn);
+
+        if (hasCurrentPageText) {
+          newBtn.addEventListener('click', function() {
+            copyTextToClipboard(this, getCurrentPageText());
+          });
+        }
+      }
+    }
+
+    /**
      * Render a specific page of the PDF
      */
     function renderPage(pageNum, drawBBox = false) {
@@ -316,6 +342,8 @@
           document.getElementById('current-page').textContent = pageNum;
           document.getElementById('page-input').value = pageNum;
           updatePagination(pageNum, totalPages);
+          updateCopyButtonStates();
+          updateCurrentPageTokens();
         }).catch(function(error) {
           isRendering = false;
           currentRenderTask = null;
@@ -682,6 +710,8 @@
           context.lineWidth = 2;
           context.stroke();
 
+          updateCopyButtonStates();
+
           // If another render was requested during this render, do it now
           if (drawRenderPending && isDrawing) {
             requestAnimationFrame(renderPageWithBox);
@@ -755,6 +785,50 @@
     }
 
     /**
+     * Copy text to clipboard with visual feedback
+     */
+    function copyTextToClipboard(button, text) {
+      if (!text || text.trim().length === 0) {
+        alert('No text available to copy.');
+        return;
+      }
+
+      navigator.clipboard.writeText(text).then(function() {
+        const originalText = button.textContent;
+        button.classList.add('copied');
+        button.textContent = 'Copied!';
+        setTimeout(function() {
+          button.classList.remove('copied');
+          button.textContent = originalText;
+        }, 2000);
+      }).catch(function(err) {
+        console.error('Failed to copy text: ', err);
+        alert('Failed to copy text. Please try again.');
+      });
+    }
+
+    /**
+     * Get all text from the PDF
+     */
+    function getAllText() {
+      let allText = '';
+      for (let i = 1; i <= Object.keys(window.textLayer).length; i++) {
+        if (window.textLayer[i]) {
+          allText += window.textLayer[i] + '\n\n';
+        }
+      }
+      return allText.trim();
+    }
+
+    /**
+     * Get text from the current page
+     */
+    function getCurrentPageText() {
+      const pageNum = window.currentPage || 1;
+      return window.textLayer[pageNum] || 'No text available for this page.';
+    }
+
+    /**
      * Extract all text from the PDF and count characters and words
      */
     async function extractTextStats(pdf) {
@@ -799,6 +873,30 @@
     }
 
     /**
+     * Update the token count for the current page
+     */
+    async function updateCurrentPageTokens() {
+      const tokensElement = document.getElementById('current-page-tokens');
+      if (!tokensElement) return;
+
+      const currentPageText = window.textLayer[currentPage] || '';
+      if (currentPageText.trim().length === 0) {
+        tokensElement.textContent = '0';
+        return;
+      }
+
+      try {
+        const { getEncoding } = await import('https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/+esm');
+        const enc = getEncoding('cl100k_base');
+        const tokenCount = enc.encode(currentPageText).length;
+        tokensElement.textContent = tokenCount.toLocaleString();
+      } catch (error) {
+        console.error('Error tokenizing current page:', error);
+        tokensElement.textContent = 'N/A';
+      }
+    }
+
+    /**
      * Extract and display PDF metadata
      */
     function extractMetadata(pdf) {
@@ -823,6 +921,10 @@
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tokens:</td>
             <td style="padding: 8px; border: 1px solid #ddd;">${stats.tokenCount > 0 ? stats.tokenCount.toLocaleString() : 'N/A'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Tokens (current page):</td>
+            <td style="padding: 8px; border: 1px solid #ddd;" id="current-page-tokens">Calculating...</td>
           </tr>
         `;
 
@@ -859,7 +961,38 @@
           `;
 
           metadataHTML += '</table>';
+
+          // Add copy buttons if text layer is available
+          if (stats.hasText) {
+            const currentPageText = window.textLayer[currentPage] || '';
+            const hasCurrentPageText = currentPageText.trim().length > 0;
+
+            metadataHTML += `
+              <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button id="copy-all-text" class="copy-btn" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; cursor: pointer; border-radius: 3px;">Copy All Text</button>
+                <button id="copy-current-text" class="copy-btn" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 3px;" ${!hasCurrentPageText ? 'disabled' : ''}>Copy Current Text</button>
+              </div>
+            `;
+          }
+
           metadataContent.innerHTML = metadataHTML;
+
+          // Update current page tokens
+          updateCurrentPageTokens();
+
+          // Attach event listeners to copy buttons
+          if (stats.hasText) {
+            document.getElementById('copy-all-text').addEventListener('click', function() {
+              copyTextToClipboard(this, getAllText());
+            });
+            const copyCurrentBtn = document.getElementById('copy-current-text');
+            const currentPageText = window.textLayer[currentPage] || '';
+            if (currentPageText.trim().length > 0) {
+              copyCurrentBtn.addEventListener('click', function() {
+                copyTextToClipboard(this, getCurrentPageText());
+              });
+            }
+          }
         }).catch(function(error) {
           metadataContent.innerHTML = 'Error extracting metadata';
           console.error(error);
