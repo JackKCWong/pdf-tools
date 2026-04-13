@@ -834,6 +834,7 @@
     async function extractTextStats(pdf) {
       try {
         let fullText = '';
+        const pageTokenCounts = [];
 
         // Clear text layer
         Object.keys(window.textLayer).forEach(key => delete window.textLayer[key]);
@@ -859,16 +860,27 @@
             const { getEncoding } = await import('https://cdn.jsdelivr.net/npm/js-tiktoken@1.0.21/+esm');
             const enc = getEncoding('cl100k_base');
             tokenCount = enc.encode(fullText).length;
+
+            // Calculate per-page token counts
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const pageText = window.textLayer[i] || '';
+              if (pageText.trim().length > 0) {
+                const pageTokens = enc.encode(pageText).length;
+                pageTokenCounts.push({ page: i, tokens: pageTokens });
+              } else {
+                pageTokenCounts.push({ page: i, tokens: 0 });
+              }
+            }
           } catch (error) {
             console.error('Error tokenizing text:', error);
             tokenCount = 0;
           }
         }
 
-        return { charCount, wordCount, tokenCount, hasText };
+        return { charCount, wordCount, tokenCount, hasText, pageTokenCounts };
       } catch (error) {
         console.error('Error extracting text stats:', error);
-        return { charCount: 0, wordCount: 0, tokenCount: 0, hasText: false };
+        return { charCount: 0, wordCount: 0, tokenCount: 0, hasText: false, pageTokenCounts: [] };
       }
     }
 
@@ -927,6 +939,66 @@
             <td style="padding: 8px; border: 1px solid #ddd;" id="current-page-tokens">Calculating...</td>
           </tr>
         `;
+
+        // Add token count distribution if available
+        if (stats.hasText && stats.pageTokenCounts && stats.pageTokenCounts.length > 0) {
+          // Calculate histogram with 10 bins
+          const tokenValues = stats.pageTokenCounts.map(p => p.tokens);
+          const minTokens = Math.min(...tokenValues);
+          const maxTokens = Math.max(...tokenValues);
+          const tokenRange = maxTokens - minTokens;
+          
+          // Create 10 bins
+          const numBins = 10;
+          const binWidth = tokenRange > 0 ? tokenRange / numBins : 1;
+          const bins = Array(numBins).fill(0);
+          
+          stats.pageTokenCounts.forEach(({ tokens }) => {
+            let binIndex = Math.floor((tokens - minTokens) / binWidth);
+            if (binIndex >= numBins) binIndex = numBins - 1; // Handle edge case for max value
+            bins[binIndex]++;
+          });
+          
+          // Find max bin count for scaling the histogram
+          const maxBinCount = Math.max(...bins);
+          
+          metadataHTML += `
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; vertical-align: top;">Token Distribution:</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">
+                <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
+                  Range: ${minTokens.toLocaleString()} - ${maxTokens.toLocaleString()} tokens
+                </div>
+                <div id="token-histogram" style="display: flex; align-items: flex-end; gap: 3px; height: 150px; padding: 10px; background-color: #fafafa; border: 1px solid #eee; border-radius: 3px;">
+          `;
+          
+          bins.forEach((count, i) => {
+            // Skip bins with zero page count
+            if (count === 0) return;
+            
+            const binStart = Math.round(minTokens + (i * binWidth));
+            const binEnd = Math.round(minTokens + ((i + 1) * binWidth));
+            const barHeight = maxBinCount > 0 ? (count / maxBinCount) * 100 : 0;
+            const percentage = stats.pageTokenCounts.length > 0 ? ((count / stats.pageTokenCounts.length) * 100).toFixed(1) : '0.0';
+            
+            metadataHTML += `
+                  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%;" title="Bin ${i + 1}: ${binStart.toLocaleString()}-${binEnd.toLocaleString()} tokens\n${count} pages (${percentage}%)">
+                    <div style="font-size: 8px; color: #999; margin-bottom: 2px; text-align: center;">${binEnd.toLocaleString()}</div>
+                    <div style="width: 100%; background-color: #4CAF50; height: ${barHeight}%; min-height: ${count > 0 ? '5' : '0'}px; border-radius: 2px 2px 0 0;"></div>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">${count}</div>
+                  </div>
+            `;
+          });
+          
+          metadataHTML += `
+                </div>
+                <div style="font-size: 10px; color: #999; text-align: center; margin-top: 4px;">
+                  Token count range per bin
+                </div>
+              </td>
+            </tr>
+          `;
+        }
 
         pdf.getMetadata().then(function(data) {
           const info = data.info || {};
