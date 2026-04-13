@@ -207,6 +207,9 @@
     let isRendering = false;
     let drawRenderPending = false;
 
+    // Global text layer storage: textLayer[pageNumber] = text content
+    window.textLayer = {};
+
     // Bounding box coordinates
     let bboxCoordinates = {
       topLeft: null,
@@ -758,11 +761,15 @@
       try {
         let fullText = '';
 
+        // Clear text layer
+        Object.keys(window.textLayer).forEach(key => delete window.textLayer[key]);
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
 
           const pageText = content.items.map(item => item.str || '').join(' ');
+          window.textLayer[i] = pageText;
           fullText += pageText + ' ';
         }
 
